@@ -57,6 +57,4 @@ namespace utils {
     inline bool storeExists(int store_id) {
         return std::filesystem::exists(getStorePath(store_id));
     }
-
-
 }

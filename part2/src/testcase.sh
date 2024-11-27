@@ -36,4 +36,4 @@ cd ../bin
 ./hearty-store-ha 1 2 3
 ./hearty-store-list
 ./hearty-store-destroy 2
-./hearty-store-get 2
+./hearty-store-put 2 ../src/testcase.sh

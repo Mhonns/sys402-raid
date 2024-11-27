@@ -114,10 +114,77 @@ private:
         if (store_metadata.ha_group_id == -1) {
             return true;  // Not part of HA group
         }
+
+        // Read HA group status
+        std::string ha_status_path = utils::getHAPath(store_metadata.ha_group_id);
+        std::ifstream status_file(ha_status_path, std::ios::binary);
+        if (!status_file) {
+            std::cerr << "Failed to open HA group status file" << std::endl;
+            return false;
+        }
+
+        HAGroupStatus ha_status;
+        status_file.read(reinterpret_cast<char*>(&ha_status), sizeof(HAGroupStatus));
         
-        // TODO Implement parity update logic here
-        // This would involve reading corresponding blocks from other stores
-        // and updating the parity file
+        // Prepare parity file path
+        std::string parity_path = ha_status_path + PARITY_FILENAME;
+
+        // Buffers for reading blocks and computing parity
+        std::vector<char> parity_buffer(BLOCK_SIZE, 0);
+        std::vector<char> block_buffer(BLOCK_SIZE);
+
+        // For each block in the store
+        for (size_t block = 0; block < NUM_BLOCKS; block++) {
+            std::fill(parity_buffer.begin(), parity_buffer.end(), 0);
+
+            // XOR all blocks from all active stores
+            for (int store_id : ha_status.store_ids) {
+                if (store_id == store_metadata.store_id) continue; // Skip current store
+
+                // Check if store is not destroyed
+                std::string store_meta_path = utils::getMetadataPath(store_id);
+                std::ifstream store_meta(store_meta_path, std::ios::binary);
+                if (!store_meta) continue;
+
+                StoreMetadata other_meta;
+                store_meta.read(reinterpret_cast<char*>(&other_meta), sizeof(StoreMetadata));
+                if (other_meta.is_destroyed) continue;
+
+                // Read block from store
+                std::ifstream store_file(utils::getDataPath(store_id), std::ios::binary);
+                if (!store_file) continue;
+
+                store_file.seekg(block * BLOCK_SIZE);
+                store_file.read(block_buffer.data(), BLOCK_SIZE);
+
+                // XOR into parity buffer
+                for (size_t i = 0; i < BLOCK_SIZE; i++) {
+                    parity_buffer[i] ^= block_buffer[i];
+                }
+            }
+
+            // Read current store's block and XOR it
+            std::ifstream current_file(utils::getDataPath(store_metadata.store_id), 
+                                    std::ios::binary);
+            if (!current_file) return false;
+
+            current_file.seekg(block * BLOCK_SIZE);
+            current_file.read(block_buffer.data(), BLOCK_SIZE);
+
+            for (size_t i = 0; i < BLOCK_SIZE; i++) {
+                parity_buffer[i] ^= block_buffer[i];
+            }
+
+            // Write updated parity
+            std::fstream parity_file(parity_path, 
+                                std::ios::binary | std::ios::in | std::ios::out);
+            if (!parity_file) return false;
+
+            parity_file.seekp(block * BLOCK_SIZE);
+            if (!parity_file.write(parity_buffer.data(), BLOCK_SIZE)) {
+                return false;
+            }
+        }
         
         return true;
     }
@@ -210,12 +277,6 @@ public:
     std::string put(const std::string& file_path) {
         // Check if store exists and load metadata
         if (!loadMetadata()) {
-            return "";
-        }
-
-        // Check if store is destroyed
-        if (store_metadata.is_destroyed) {
-            std::cerr << "Store is destroyed" << std::endl;
             return "";
         }
 
