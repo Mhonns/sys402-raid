@@ -28,22 +28,35 @@ struct StoreMetadata {
     bool is_destroyed;       // If store is in destroyed state
 };
 
+struct HAGroupStatus {
+    int group_id;               // group ID
+    int store_count;            // how many store in ha left
+    int destroyed_count;        // how many store has been destroyed
+    std::vector<int> store_ids; // all store id in the ha
+};
+
 // Utility functions
 namespace utils {
     inline std::string getStorePath(int store_id) {
-        return BASE_PATH + "/store_" + std::to_string(store_id);
+        return BASE_PATH + STORE_DIR + std::to_string(store_id);
     }
 
     inline std::string getDataPath(int store_id) {
-        return getStorePath(store_id) + "/data.bin";
+        return getStorePath(store_id) + DATA_FILENAME;
     }
 
     inline std::string getMetadataPath(int store_id) {
-        return getStorePath(store_id) + "/metadata.bin";
+        return getStorePath(store_id) + META_FILENAME;
+    }
+
+    inline std::string getHAPath(int ha_group_id) {
+        return BASE_PATH + "/ha_group_" + std::to_string(ha_group_id);
     }
 
     // Checks if a store exists
     inline bool storeExists(int store_id) {
         return std::filesystem::exists(getStorePath(store_id));
     }
+
+
 }

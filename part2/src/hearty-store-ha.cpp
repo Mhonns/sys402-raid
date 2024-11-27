@@ -6,6 +6,8 @@
 #include <set>
 #include "hearty-store-common.hpp"
 
+std::vector<std::vector<int>> ha_group_counts(NUM_BLOCKS, std::vector<int>(NUM_BLOCKS, 0));
+
 class StoreHA {
 private:
     bool loadStoreMetadata(int store_id, StoreMetadata& metadata) {
@@ -121,10 +123,10 @@ public:
         }
 
         // Create parity directory structure
-        std::string parity_path = BASE_PATH + "/ha_group_" + std::to_string(store_ids[0]);
-        if (!std::filesystem::exists(parity_path)) {
+        std::string ha_path = utils::getHAPath(store_ids[0]);
+        if (!std::filesystem::exists(ha_path)) {
             try {
-                std::filesystem::create_directories(parity_path);
+                std::filesystem::create_directories(ha_path);
             } catch (const std::filesystem::filesystem_error& e) {
                 std::cerr << "Failed to create store directory: " << e.what() << std::endl;
                 return false;
@@ -132,7 +134,7 @@ public:
         }
 
         // Create parity file
-        std::string full_parity_path = parity_path + PARITY_FILENAME;
+        std::string full_parity_path = ha_path + PARITY_FILENAME;
         if (!createParityFile(full_parity_path)) {
             std::cerr << "Failed to create parity file" << std::endl;
             return false;
@@ -141,7 +143,7 @@ public:
         // Calculate initial parity
         if (!updateParity(store_ids)) {
             std::cerr << "Failed to calculate initial parity" << std::endl;
-            std::filesystem::remove(parity_path);
+            std::filesystem::remove(ha_path);
             return false;
         }
 
@@ -155,9 +157,28 @@ public:
             metadata.ha_group_id = store_ids[0];  // Use first store's ID as group ID
             if (!saveStoreMetadata(store_id, metadata)) {
                 std::cerr << "Warning: Failed to update metadata for store " 
-                         << store_id << std::endl;
+                            << store_id << std::endl;
             }
         }
+        
+        // Update global ha status
+        HAGroupStatus status;
+        status.group_id = store_ids[0];
+        status.store_count = store_ids.size();
+        status.destroyed_count = 0;
+        std::string ha_filepath = ha_path + "/status.data";
+        std::ofstream outFile(ha_filepath, std::ios::binary);
+        if (!outFile) {
+            std::cerr << "Error opening file for writing!" << std::endl;
+            return false;
+        }
+        outFile.write(reinterpret_cast<const char*>(&status.group_id), sizeof(status.group_id));
+        outFile.write(reinterpret_cast<const char*>(&status.store_count), sizeof(status.store_count));
+        outFile.write(reinterpret_cast<const char*>(&status.destroyed_count), sizeof(status.destroyed_count));
+        for (int store_id : store_ids) {
+            outFile.write(reinterpret_cast<const char*>(&store_id), sizeof(store_id));
+        }
+        outFile.close();
 
         return true;
     }

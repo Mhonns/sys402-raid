@@ -26,5 +26,14 @@ cd ../bin
 # ./hearty-store-replicate 1 ../src/testcase.sh
 
 # High available cases
+# ./hearty-store-ha 1 2 3
+# ./hearty-store-list
+# ./hearty-store-destroy 2
+# ./hearty-store-list
+# ./hearty-store-destroy 3
+
+# Parity cases
 ./hearty-store-ha 1 2 3
 ./hearty-store-list
+./hearty-store-destroy 2
+./hearty-store-get 2

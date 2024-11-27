@@ -19,6 +19,7 @@ private:
         }
 
         // Handle HA group
+        std::cout << "Store id " << store_id << "HA " << metadata.ha_group_id << '\n'; 
         if (metadata.ha_group_id != -1) {
             // Mark as destroyed but don't remove files
             metadata.is_destroyed = true;
@@ -28,13 +29,86 @@ private:
                 std::cerr << "Failed to update metadata" << std::endl;
                 return false;
             }
+
+            // Get the ha group status
+            HAGroupStatus status;
+            std::string ha_path = utils::getHAPath(metadata.ha_group_id);
+            std::string filename = ha_path + "/status.data";
+            std::ifstream inFile(filename, std::ios::binary);
+            inFile.read(reinterpret_cast<char*>(&status.group_id), sizeof(status.group_id));
+            inFile.read(reinterpret_cast<char*>(&status.store_count), sizeof(status.store_count));
+            inFile.read(reinterpret_cast<char*>(&status.destroyed_count), sizeof(status.destroyed_count));
+
+            // Update the ha group status
+            status.destroyed_count++;
+            if (status.destroyed_count > 1) {
+                // Delete ha group is more than one was destroyed
+                for (int i = 0; i < status.store_count; i++) {
+                    // Get metadata for all store in ha
+                    int store_id; 
+                    inFile.read(reinterpret_cast<char*>(&store_id), sizeof(store_id));
+                    StoreMetadata target_metadata = metadata;
+                    if (store_id != metadata.store_id) {
+                        if (!loadStoreMetadata(store_id, target_metadata)) {
+                            std::cerr << "Failed to load store metadata" << std::endl;
+                            return false;
+                        }
+                    } 
+
+                    // Update metadata
+                    int temp_ha_group_id = target_metadata.ha_group_id;
+                    target_metadata.ha_group_id = -1;
+                    std::ofstream file(utils::getMetadataPath(target_metadata.store_id), std::ios::binary);
+                    if (!file) {
+                        std::cerr << "Failed to open metadata file for writing" << std::endl;
+                        return false;
+                    }
+                    file.write(reinterpret_cast<char*>(&target_metadata), sizeof(StoreMetadata));
+                    file.close();
+
+                    // Destroy the store if any
+                    if (target_metadata.is_destroyed) {
+                        std::cout << "Store is destroy:" << target_metadata.store_id << '\n';
+                        // Remove all files
+                        try {
+                            std::filesystem::remove_all(utils::getStorePath(store_id));
+                        } catch (const std::filesystem::filesystem_error& e) {
+                            std::cerr << "Failed to remove store files: " << e.what() << std::endl;
+                            return false;
+                        }   
+                    }
+
+                    // Remove all files
+                    std::filesystem::remove_all(utils::getHAPath(temp_ha_group_id));
+                }
+            } else {
+                // Write the update for ha status
+                std::string ha_filepath = ha_path + "/status.data";
+                std::ofstream outFile(ha_filepath, std::ios::binary);
+                if (!outFile) {
+                    std::cerr << "Error opening file for writing!" << std::endl;
+                    return false;
+                }
+                outFile.write(reinterpret_cast<const char*>(&status.group_id), sizeof(status.group_id));
+                outFile.write(reinterpret_cast<const char*>(&status.store_count), sizeof(status.store_count));
+                outFile.write(reinterpret_cast<const char*>(&status.destroyed_count), sizeof(status.destroyed_count));
+                
+                // Read and write store ids
+                for (int i = 0; i < status.store_count; i++) {  
+                    int store_id;
+                    inFile.read(reinterpret_cast<char*>(&store_id), sizeof(store_id));
+                    outFile.write(reinterpret_cast<const char*>(&store_id), sizeof(store_id));
+                }
+                outFile.close();
+            }
+            inFile.close();
             return true;
         }
 
         // Handle replica
         if ((metadata.is_replica || metadata.replica_of != -1) && !related_store) {
             // Find and destroy the related store
-            int related_id = metadata.replica_of; 
+            int related_id = metadata.replica_of;
             try {
                 if (utils::storeExists(store_id)) {
                     destroyStore(related_id, true);

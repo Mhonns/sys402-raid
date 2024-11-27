@@ -62,6 +62,7 @@ private:
         for (const auto& block : block_metadata) {
             file.write(reinterpret_cast<const char*>(&block), sizeof(BlockMetadata));
         }
+        file.close();
 
         return true;
     }
@@ -105,6 +106,7 @@ private:
         block_metadata[block_num].timestamp = std::time(nullptr);
         store_metadata.used_blocks++;
 
+        input_file.close();
         return true;
     }
 
