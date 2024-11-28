@@ -1,3 +1,14 @@
+/**
+ * @file hearty-store-init.cpp
+ * @author Nathadon Samairat
+ * @brief Initializes a new store by creating necessary files and metadata.
+ * @version 0.1
+ * @date 2024-11-27
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
+
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -12,6 +23,13 @@ private:
     StoreMetadata store_metadata;
     std::vector<BlockMetadata> block_metadata;
 
+    /**
+     * @brief Creates and initializes the store's data file.
+     * 
+     * @param path Path to the data file to be created.
+     * 
+     * @return true if the data file is successfully created and initialized; false otherwise.
+     */
     bool createDataFile(const std::string& path) {
         std::ofstream file(path, std::ios::binary);
         if (!file) {
@@ -30,6 +48,13 @@ private:
         return true;
     }
 
+    /**
+     * @brief Creates and initializes the store's metadata file.
+     * 
+     * @param path Path to the metadata file to be created.
+     * 
+     * @return true if the metadata file is successfully created and initialized; false otherwise.
+     */
     bool createMetadataFile(const std::string& path) {
         std::ofstream file(path, std::ios::binary);
         if (!file) {
@@ -48,6 +73,14 @@ private:
         return true;
     }
 
+    /**
+     * @brief Initializes metadata for a new store.
+     * 
+     * @param store_id ID of the store being initialized.
+     * 
+     * @return true if metadata initialization succeeds; false otherwise.
+     * 
+     */
     bool initializeMetadata(int store_id) {
         // Initialize store metadata
         store_metadata.store_id = store_id;
@@ -73,6 +106,13 @@ private:
 public:
     StoreInitializer() {}
 
+    /**
+     * @brief Initializes a new store with the given ID.
+     * 
+     * @param store_id ID of the store to initialize.
+     * 
+     * @return true if the store is successfully initialized; false otherwise
+     */
     bool initialize(int store_id) {
         // Check if store already exists
         std::string store_path = BASE_PATH + STORE_DIR + std::to_string(store_id);
