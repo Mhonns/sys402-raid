@@ -1,4 +1,15 @@
-// hearty-store-list.cpp
+
+/**
+ * @file hearty-store-list.cpp
+ * @author Nathadon Samairat
+ * @brief   The program scans for directories in the base path corresponding to stores.
+ *          Metadata for each store is loaded and displayed, including status, block usage, and HA group information.
+ * @version 0.1
+ * @date 2024-11-28
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 #include <iostream>
 #include <fstream>
 #include <iomanip>
@@ -6,7 +17,13 @@
 
 class StoreList {
 private:
-    // Helper function to get store status
+    /**
+     * @brief Helper function to retrieve and format the status of a store.
+     * 
+     * @param metadata StoreMetadata structure containing store details.
+     * 
+     * @return std::string A formatted string describing the store's status.
+     */
     std::string getStoreStatus(const StoreMetadata& metadata) {
         std::string status;
         if (metadata.is_destroyed) {
@@ -25,6 +42,14 @@ private:
         return status.empty() ? "active" : status;
     }
 
+    /**
+     * @brief Loads metadata for a specific store from disk.
+     * 
+     * @param store_id The ID of the store to load metadata for.
+     * @param metadata Reference to a StoreMetadata object to populate with data.
+     * 
+     * @return true if metadata is successfully loaded; false otherwise.
+     */
     bool loadStoreMetadata(int store_id, StoreMetadata& metadata) {
         std::string metadata_path = BASE_PATH + "/store_" + std::to_string(store_id) + META_FILENAME;
         std::ifstream file(metadata_path, std::ios::binary);
@@ -34,6 +59,10 @@ private:
     }
 
 public:
+
+    /**
+     * @brief Lists all available stores and their metadata.
+     */
     void list() {
         if (!std::filesystem::exists(BASE_PATH)) {
             std::cout << "No stores found" << std::endl;
