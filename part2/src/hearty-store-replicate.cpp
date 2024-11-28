@@ -1,3 +1,13 @@
+/**
+ * @file hearty-store-replicate.cpp
+ * @author Nathadon Samairat
+ * @brief 
+ * @version 0.1
+ * @date 2024-11-27
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 #include <iostream>
 #include <fstream>
 #include <random>
@@ -5,6 +15,11 @@
 
 class StoreReplicate {
 private:
+    /**
+     * @brief Generates a unique ID for a new replica store.
+     * 
+     * @return A new unique store ID.
+     */
     int generateNewStoreId() {
         std::random_device rd;
         std::mt19937 gen(rd());
@@ -19,6 +34,14 @@ private:
         return new_id;
     }
 
+    /**
+     * @brief Copies data from the source store to the replica store.
+     * 
+     * @param source_id ID of the source store.
+     * @param replica_id ID of the replica store.
+     * 
+     * @return true if the data copy is successful; false otherwise.
+     */
     bool copyStoreData(int source_id, int replica_id) {
         std::ifstream src(utils::getDataPath(source_id), std::ios::binary);
         std::ofstream dst(utils::getDataPath(replica_id), std::ios::binary);
@@ -47,6 +70,14 @@ private:
         return true;
     }
 
+    /**
+     * @brief Updates the metadata of the source store to link it to the replica.
+     * 
+     * @param source_id ID of the source store.
+     * @param replica_id ID of the replica store.
+     * 
+     * @return true if the metadata update is successful; false otherwise.
+     */
     bool updateSourceMetadata(int source_id, int replica_id) {
         StoreMetadata metadata;
         std::fstream file(utils::getMetadataPath(source_id), 
@@ -68,6 +99,14 @@ private:
         return true;
     }
 
+    /**
+     * @brief Creates metadata for the replica store.
+     * 
+     * @param source_id ID of the source store.
+     * @param replica_id ID of the replica store.
+     * 
+     * @return true if the metadata creation is successful; false otherwise.
+     */
     bool createReplicaMetadata(int source_id, int replica_id) {
         // First read source metadata
         StoreMetadata source_metadata;
@@ -105,6 +144,13 @@ private:
         return true;
     }
 
+    /**
+     * @brief Creates directories for the replica store.
+     * 
+     * @param replica_id ID of the replica store.
+     * 
+     * @return true if the directories are created successfully; false otherwise.
+     */
     bool createReplicaDirectories(int replica_id) {
         try {
             std::filesystem::create_directories(utils::getStorePath(replica_id));
@@ -116,6 +162,13 @@ private:
     }
 
 public:
+    /**
+     * @brief Creates a replica for the specified source store.
+     * 
+     * @param source_id ID of the source store.
+     * 
+     * @return The ID of the newly created replica store, or -1 on failure.
+     */
     int replicate(int source_id) {
         // Verify source store exists
         std::string store_path = BASE_PATH + STORE_DIR + std::to_string(source_id);
