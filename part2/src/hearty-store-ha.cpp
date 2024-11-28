@@ -1,4 +1,14 @@
-// hearty-store-ha.cpp
+/**
+ * @file hearty-store-ha.cpp
+ * @author Nathadon Samairat
+ * @brief Manages the creation of High Availability (HA) groups for stores, 
+ *          including metadata management, parity file creation, and store validation.
+ * @version 0.1
+ * @date 2024-11-28
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -10,6 +20,14 @@ std::vector<std::vector<int>> ha_group_counts(NUM_BLOCKS, std::vector<int>(NUM_B
 
 class StoreHA {
 private:
+    /**
+     * @brief Loads the metadata for a given store.
+     * 
+     * @param store_id ID of the store.
+     * @param metadata Reference to the metadata object to load.
+     * 
+     * @return true if metadata is successfully loaded; false otherwise.
+     */
     bool loadStoreMetadata(int store_id, StoreMetadata& metadata) {
         std::ifstream file(utils::getMetadataPath(store_id), std::ios::binary);
         if (!file) return false;
@@ -17,6 +35,14 @@ private:
         return true;
     }
 
+    /**
+     * @brief Saves the metadata for a given store.
+     * 
+     * @param store_id ID of the store.
+     * @param metadata Reference to the metadata object to save.
+     * 
+     * @return true if metadata is successfully saved; false otherwise.
+     */
     bool saveStoreMetadata(int store_id, const StoreMetadata& metadata) {
         std::ofstream file(utils::getMetadataPath(store_id), std::ios::binary | std::ios::trunc);
         if (!file) return false;
@@ -24,6 +50,13 @@ private:
         return true;
     }
 
+    /**
+     * @brief Creates a parity file for an HA group.
+     * 
+     * @param parity_path Path to the parity file.
+     * 
+     * @return true if the parity file is successfully created; false otherwise.
+     */
     bool createParityFile(const std::string& parity_path) {
         std::ofstream parity(parity_path, std::ios::binary);
         if (!parity) return false;
@@ -38,6 +71,13 @@ private:
         return true;
     }
 
+    /**
+     * @brief Updates the parity file for the given stores in an HA group.
+     * 
+     * @param store_ids List of store IDs to include in the parity computation.
+     * 
+     * @return true if the parity is successfully updated; false otherwise.
+     */
     bool updateParity(const std::vector<int>& store_ids) {
         std::string parity_path = BASE_PATH + "/ha_group_" + 
                                  std::to_string(store_ids[0]) + PARITY_FILENAME;
@@ -78,6 +118,13 @@ private:
         return true;
     }
 
+    /**
+     * @brief Validates the given stores for inclusion in an HA group.
+     * 
+     * @param store_ids List of store IDs to validate.
+     * 
+     * @return true if all stores are valid; false otherwise.
+     */
     bool validateStores(const std::vector<int>& store_ids) {
         std::set<int> unique_ids(store_ids.begin(), store_ids.end());
         
@@ -115,6 +162,13 @@ private:
     }
 
 public:
+    /**
+     * @brief Creates a High Availability (HA) group from the given stores.
+     * 
+     * @param store_ids List of store IDs to include in the HA group.
+     * 
+     * @return true if the HA group is successfully created; false otherwise.
+     */
     bool createHAGroup(const std::vector<int>& store_ids) {
         
         // Validate all stores
