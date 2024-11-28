@@ -1,4 +1,14 @@
-// hearty-store-get.cpp
+/**
+ * @file hearty-store-get.cpp
+ * @author Nathadon Samairat
+ * @brief This program provides functionality to retrieve objects 
+ *        from a distributed storage system. It handles metadata loading, 
+ *        block reconstruction using parity, and direct block reading.
+ * @version 0.1
+ * @date 2024-11-27
+ * 
+ * @copyright Copyright (c) 2024
+ */
 #include <iostream>
 #include <fstream>
 #include <algorithm>
@@ -10,6 +20,12 @@ private:
     StoreMetadata store_metadata;
     std::vector<BlockMetadata> block_metadata;
 
+    /**
+     * @brief Load metadata for the store, including store and block metadata.
+     * 
+     * @return true     - Metadata loaded successfully.
+     * @return false    - Failed to load metadata.
+     */
     bool loadMetadata() {
         std::ifstream file(utils::getMetadataPath(store_id), std::ios::binary);
         if (!file) {
@@ -27,6 +43,12 @@ private:
         return true;
     }
 
+    /**
+     * @brief Locate the block containing the specified object ID.
+     * 
+     * @param object_id     - Target object ID to find in the store.
+     * @return int          - Index of the block if found; -1 if not found.
+     */
     int findBlockByObjectId(const std::string& object_id) {
         for (size_t i = 0; i < NUM_BLOCKS; i++) {
             if (block_metadata[i].is_used && block_metadata[i].object_id == object_id) {
@@ -36,34 +58,83 @@ private:
         return -1;
     }
 
+    /**
+     * @brief Reconstruct a block's data using parity and data from surviving stores.
+     * 
+     * @param block_num     - Block number to reconstruct.
+     * @param out           - Output stream to write the reconstructed data.
+     * @return true         - Successfully reconstructed the block.
+     * @return false        - Failed to reconstruct the block.
+     */
     bool reconstructFromParity(int block_num, std::ostream& out) {
         if (store_metadata.ha_group_id == -1) {
             return false;
         }
 
-        // TODO: Implement parity reconstruction
-        // 1. Read corresponding blocks from other stores in HA group
-        // 2. Read parity block
-        // 3. Reconstruct data using XOR operations
-        // 4. Write reconstructed data to output stream
-
-        return false;  // Not implemented yet
-    }
-
-    bool readFromReplica(const std::string& object_id, std::ostream& out) {
-        if (store_metadata.replica_of == -1 && !store_metadata.is_replica) {
+        // Read HA group status
+        std::string ha_status_path = utils::getHAPath(store_metadata.ha_group_id);
+        std::ifstream status_file(ha_status_path, std::ios::binary);
+        if (!status_file) {
             return false;
         }
 
-        // TODO: Implement replica reading
-        // 1. Determine replica store ID
-        // 2. Load replica's metadata
-        // 3. Find block in replica
-        // 4. Read data from replica
+        HAGroupStatus ha_status;
+        status_file.read(reinterpret_cast<char*>(&ha_status), sizeof(HAGroupStatus));
 
-        return false;  // Not implemented yet
+        // Prepare buffers
+        std::vector<char> data_buffer(BLOCK_SIZE, 0);
+        std::vector<char> block_buffer(BLOCK_SIZE);
+
+        // Read parity block
+        std::string parity_path = ha_status_path + PARITY_FILENAME;
+        std::ifstream parity_file(parity_path, std::ios::binary);
+        if (!parity_file) {
+            return false;
+        }
+
+        parity_file.seekg(block_num * BLOCK_SIZE);
+        parity_file.read(data_buffer.data(), BLOCK_SIZE);
+
+        // XOR with blocks from surviving stores
+        for (int store_id : ha_status.store_ids) {
+            if (store_id == store_metadata.store_id) continue; // Skip current store
+
+            // Check if store is active
+            std::string store_meta_path = utils::getMetadataPath(store_id);
+            std::ifstream store_meta(store_meta_path, std::ios::binary);
+            if (!store_meta) continue;
+
+            StoreMetadata other_meta;
+            store_meta.read(reinterpret_cast<char*>(&other_meta), sizeof(StoreMetadata));
+            if (other_meta.is_destroyed) continue;
+
+            // Read block from this store
+            std::ifstream store_file(utils::getDataPath(store_id), std::ios::binary);
+            if (!store_file) continue;
+
+            store_file.seekg(block_num * BLOCK_SIZE);
+            store_file.read(block_buffer.data(), BLOCK_SIZE);
+
+            // XOR into data buffer
+            for (size_t i = 0; i < BLOCK_SIZE; i++) {
+                data_buffer[i] ^= block_buffer[i];
+            }
+        }
+
+        // Write reconstructed data
+        out.write(data_buffer.data(), BLOCK_SIZE);
+
+        return true;
     }
 
+    /**
+     * @brief Read a block's data from the store and output it.
+     * 
+     * @param block_num     - Block number to read.
+     * @param out           - Output stream to write the block's data.
+     * @return true         - Successfully read the block.
+     * @return false        - Failed to read the block.
+     */
     bool readBlock(int block_num, std::ostream& out) {
         std::ifstream data_file(utils::getDataPath(store_id), std::ios::binary);
         if (!data_file) {
@@ -90,7 +161,15 @@ private:
 
 public:
     StoreGet(int id) : store_id(id) {}
-
+    
+    /**
+     * @brief Retrieve an object by its ID from the store or reconstruct it if necessary.
+     * 
+     * @param object_id     - ID of the object to retrieve.
+     * @param out           - Output stream to write the object's data.
+     * @return true         - Successfully retrieved the object.
+     * @return false        - Failed to retrieve the object.
+     */
     bool get(const std::string& object_id, std::ostream& out) {
         if (!loadMetadata()) {
             return false;
@@ -102,9 +181,6 @@ public:
             int block_num = findBlockByObjectId(object_id);
             if (block_num != -1) {
                 if (reconstructFromParity(block_num, out)) {
-                    return true;
-                }
-                if (readFromReplica(object_id, out)) {
                     return true;
                 }
             }
