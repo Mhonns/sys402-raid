@@ -1,3 +1,15 @@
+/**
+ * @file hearty-store-put.cpp
+ * @author Nathadon Samairat
+ * @brief Implements the functionality to store files into a block-based storage system.
+ *        Provides replication, metadata synchronization, and high-availability group management.
+ * @version 0.1
+ * @date 2024-11-27
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
+
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -14,6 +26,12 @@ private:
     StoreMetadata store_metadata;
     std::vector<BlockMetadata> block_metadata;
 
+    /**
+     * @brief Generates a unique ID by combining a timestamp and a random number.
+     * 
+     * @return std::string A unique identifier string in the format "timestamp_randomNumber".
+     *         Example: "1637359000000_1234".
+     */
     std::string generateUniqueId() {
         // Generate a random ID using timestamp and random number
         auto now = std::chrono::system_clock::now();
@@ -29,6 +47,12 @@ private:
         return std::to_string(timestamp) + "_" + std::to_string(dis(gen));
     }
 
+    /**
+     * @brief Loads metadata from a binary file for the store and its blocks.
+     * 
+     * @return true if metadata is successfully loaded.
+     * @return false if metadata file could not be opened or read.
+     */
     bool loadMetadata() {
         std::ifstream file(utils::getMetadataPath(store_id), std::ios::binary);
         if (!file) {
@@ -48,6 +72,12 @@ private:
         return true;
     }
 
+    /**
+     * @brief Saves the current metadata for the store and its blocks to a binary file.
+     * 
+     * @return true if metadata is successfully saved.
+     * @return false if metadata file could not be opened or written.
+     */
     bool saveMetadata() {
         std::ofstream file(utils::getMetadataPath(store_id), std::ios::binary);
         if (!file) {
@@ -67,6 +97,11 @@ private:
         return true;
     }
 
+    /**
+     * @brief Finds the index of a free block in the store.
+     * 
+     * @return int The index of a free block, or -1 if no free blocks are available.
+     */
     int findFreeBlock() {
         for (size_t i = 0; i < NUM_BLOCKS; i++) {
             if (!block_metadata[i].is_used) {
@@ -76,6 +111,15 @@ private:
         return -1;
     }
 
+     /**
+     * @brief Writes a file's contents to a specific block in the store.
+     * 
+     * @param file_path The path to the file to be written.
+     * @param block_num The index of the block to write to.
+     * @param object_id The unique identifier for the object being stored.
+     * @return true if the file is successfully written to the block.
+     * @return false if the file or data block could not be opened or written.
+     */
     bool writeToBlock(const std::string& file_path, int block_num, const std::string& object_id) {
         std::ifstream input_file(file_path, std::ios::binary);
         if (!input_file) {
@@ -110,6 +154,12 @@ private:
         return true;
     }
 
+    /**
+     * @brief Updates the parity data for the store in an HA group.
+     * 
+     * @return true if parity is successfully updated or the store is not part of an HA group.
+     * @return false if parity update fails.
+     */
     bool updateParity() {
         if (store_metadata.ha_group_id == -1) {
             return true;  // Not part of HA group
@@ -189,6 +239,12 @@ private:
         return true;
     }
 
+    /**
+     * @brief Synchronizes the current store with its replica.
+     * 
+     * @return true if the replica is successfully synchronized or the store is not part of a replica pair.
+     * @return false if synchronization fails.
+     */
     bool syncWithReplica() {
         if (!store_metadata.is_replica && store_metadata.replica_of == -1) {
             return true;  // Not part of a replica pair
@@ -274,6 +330,12 @@ private:
 public:
     StorePut(int id) : store_id(id) {}
 
+    /**
+     * @brief   Stores a file in the storage system and performs associated updates.
+     * 
+     * @param file_path     The path of the file to be stored.
+     * @return std::string The unique object ID assigned to the stored file, or an empty string on failure.
+     */
     std::string put(const std::string& file_path) {
         // Check if store exists and load metadata
         if (!loadMetadata()) {
