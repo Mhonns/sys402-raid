@@ -58,6 +58,68 @@ private:
         return -1;
     }
 
+    // readFromReplica
+    /**
+     * @brief Attempt to read an object's data from a replica store.
+     * 
+     * @param object_id     - ID of the object to retrieve from the replica.
+     * @param out           - Output stream to write the object's data.
+     * @return true         - Successfully read the object from a replica.
+     * @return false        - Failed to read the object or no replica available.
+     */
+    bool readFromReplica(const std::string& object_id, std::ostream& out) {
+        if (store_metadata.replica_of == -1 && !store_metadata.is_replica) {
+            return false;
+        }
+
+        // Get replica store ID
+        int replica_id = store_metadata.is_replica ? 
+                        store_metadata.replica_of : 
+                        store_metadata.store_id;
+
+        // Load replica's metadata
+        StoreMetadata replica_metadata;
+        std::ifstream replica_meta(utils::getMetadataPath(replica_id), std::ios::binary);
+        if (!replica_meta) {
+            return false;
+        }
+        replica_meta.read(reinterpret_cast<char*>(&replica_metadata), sizeof(StoreMetadata));
+
+        // Read block metadata to find object
+        std::vector<BlockMetadata> block_metadata(NUM_BLOCKS);
+        for (auto& block : block_metadata) {
+            replica_meta.read(reinterpret_cast<char*>(&block), sizeof(BlockMetadata));
+        }
+
+        // Find block containing object
+        int block_num = -1;
+        for (size_t i = 0; i < NUM_BLOCKS; i++) {
+            if (block_metadata[i].is_used && block_metadata[i].object_id == object_id) {
+                block_num = i;
+                break;
+            }
+        }
+
+        if (block_num == -1) {
+            return false;
+        }
+
+        // Read data from replica's block
+        std::ifstream replica_data(utils::getDataPath(replica_id), std::ios::binary);
+        if (!replica_data) {
+            return false;
+        }
+
+        replica_data.seekg(block_num * BLOCK_SIZE);
+        std::vector<char> buffer(block_metadata[block_num].data_size);
+        replica_data.read(buffer.data(), block_metadata[block_num].data_size);
+
+        // Write to output stream
+        out.write(buffer.data(), block_metadata[block_num].data_size);
+
+        return true;
+    }
+
     /**
      * @brief Reconstruct a block's data using parity and data from surviving stores.
      * 
@@ -181,6 +243,9 @@ public:
             int block_num = findBlockByObjectId(object_id);
             if (block_num != -1) {
                 if (reconstructFromParity(block_num, out)) {
+                    return true;
+                }
+                if (readFromReplica(object_id, out)) {
                     return true;
                 }
             }
