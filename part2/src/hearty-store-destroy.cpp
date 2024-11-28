@@ -1,9 +1,27 @@
+/**
+ * @file hearty-store-destroy.cpp
+ * @author Nathadon Samairat
+ * @brief Handles the destruction of stores and related metadata or files.
+ * @version 0.1
+ * @date 2024-11-27
+ * 
+ * @copyright Copyright (c) 2024
+ */
+
 #include <iostream>
 #include <fstream>
 #include "hearty-store-common.hpp"
 
 class StoreDestroy {
 private:
+    /**
+     * @brief Loads metadata for the specified store.
+     * 
+     * @param store_id ID of the store to load metadata for.
+     * @param metadata Reference to a metadata structure to populate.
+     * 
+     * @return true if the metadata is successfully loaded; false otherwise.
+     */
     bool loadStoreMetadata(int store_id, StoreMetadata& metadata) {
         std::ifstream file(utils::getMetadataPath(store_id), std::ios::binary);
         if (!file) return false;
@@ -11,6 +29,14 @@ private:
         return true;
     }
 
+    /**
+     * @brief Destroys the specified store, handling related stores or HA group data.
+     * 
+     * @param store_id ID of the store to destroy.
+     * @param related_store Indicates whether this is a related store being handled.
+     * 
+     * @return true if the store is successfully destroyed; false otherwise.
+     */
     bool destroyStore(int store_id, bool related_store) {
         StoreMetadata metadata;
         if (!loadStoreMetadata(store_id, metadata)) {
@@ -19,7 +45,6 @@ private:
         }
 
         // Handle HA group
-        std::cout << "Store id " << store_id << "HA " << metadata.ha_group_id << '\n'; 
         if (metadata.ha_group_id != -1) {
             // Mark as destroyed but don't remove files
             metadata.is_destroyed = true;
@@ -68,7 +93,6 @@ private:
 
                     // Destroy the store if any
                     if (target_metadata.is_destroyed) {
-                        std::cout << "Store is destroy:" << target_metadata.store_id << '\n';
                         // Remove all files
                         try {
                             std::filesystem::remove_all(utils::getStorePath(store_id));
@@ -131,6 +155,14 @@ private:
     }
 
 public:
+    /**
+     * @brief Public method to initiate the destruction of a store.
+     * 
+     * @param store_id ID of the store to destroy.
+     * @param related_store Indicates whether this is a related store being handled.
+     * 
+     * @return true if the store is successfully destroyed; false otherwise.
+     */
     bool destroy(int store_id, bool related_store) {
         if (!utils::storeExists(store_id)) {
             std::cerr << "Store " << store_id << " does not exist" << std::endl;
